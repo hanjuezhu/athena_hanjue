@@ -122,16 +122,17 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
          Real sigma_y = pcr->sigma_diff(1,k,j,i);
          Real sigma_z = pcr->sigma_diff(2,k,j,i);
 
-         if (pcr->stream_flag) {
-           sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) +
-                             1.0/pcr->sigma_adv(0,k,j,i));
+        // CHANGE
+        //  if (pcr->stream_flag) {
+        //    sigma_x = 1.0/(1.0/pcr->sigma_diff(0,k,j,i) +
+        //                      1.0/pcr->sigma_adv(0,k,j,i));
 
-           sigma_y = 1.0/(1.0/pcr->sigma_diff(1,k,j,i) +
-                             1.0/pcr->sigma_adv(1,k,j,i));
+        //    sigma_y = 1.0/(1.0/pcr->sigma_diff(1,k,j,i) +
+        //                      1.0/pcr->sigma_adv(1,k,j,i));
 
-           sigma_z = 1.0/(1.0/pcr->sigma_diff(2,k,j,i) +
-                             1.0/pcr->sigma_adv(2,k,j,i));
-         }
+        //    sigma_z = 1.0/(1.0/pcr->sigma_diff(2,k,j,i) +
+        //                      1.0/pcr->sigma_adv(2,k,j,i));
+        //  }
 
          // Now update the momentum equation
          //\partial F/\partial t=-V_m\sigma (F-v(E+Pc_)/v_m))
@@ -143,20 +144,26 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
          Real rhs3 = fr2;
          Real rhs4 = fr3;
 
-         Real coef_11 = 1.0 - dt * sigma_x * vtot1 * v1 * invlim * 4.0/3.0
-                            - dt * sigma_y * vtot2 * v2 * invlim * 4.0/3.0
-                            - dt * sigma_z * vtot3 * v3 * invlim * 4.0/3.0;
+        //  Real coef_11 = 1.0 - dt * sigma_x * vtot1 * v1 * invlim * 4.0/3.0
+        //                     - dt * sigma_y * vtot2 * v2 * invlim * 4.0/3.0
+        //                     - dt * sigma_z * vtot3 * v3 * invlim * 4.0/3.0;
+         Real coef_11 = 1.0 - dt * sigma_x * vtot1 * vtot1 * invlim * 4.0/3.0
+                           - dt * sigma_y * vtot2 * vtot2 * invlim * 4.0/3.0
+                           - dt * sigma_z * vtot3 * vtot3 * invlim * 4.0/3.0;
          Real coef_12 = dt * sigma_x * vtot1;
          Real coef_13 = dt * sigma_y * vtot2;
          Real coef_14 = dt * sigma_z * vtot3;
 
-         Real coef_21 = -dt * v1 * sigma_x * 4.0/3.0;
+         // Real coef_21 = -dt * v1 * sigma_x * 4.0/3.0;
+         Real coef_21 = -dt * vtot1 * sigma_x * 4.0/3.0;
          Real coef_22 = 1.0 + dt * vlim * sigma_x;
 
-         Real coef_31 = -dt * v2 * sigma_y * 4.0/3.0;
+         // Real coef_31 = -dt * v2 * sigma_y * 4.0/3.0;
+         Real coef_31 = -dt * vtot2 * sigma_y * 4.0/3.0;
          Real coef_33 = 1.0 + dt * vlim * sigma_y;
 
-         Real coef_41 = -dt * v3 * sigma_z * 4.0/3.0;
+         // Real coef_41 = -dt * v3 * sigma_z * 4.0/3.0;
+         Real coef_41 = -dt * vtot3 * sigma_z * 4.0/3.0;
          Real coef_44 = 1.0 + dt * vlim * sigma_z;
 
         //newfr1 = (rhs2 - coef21 * newEc)/coef22

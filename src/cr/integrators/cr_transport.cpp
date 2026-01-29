@@ -82,10 +82,16 @@ void CRIntegrator::CalculateFluxes(
       // Then rotate according to B direction to the actual acooridnate
       for (int i=0; i<ncells1; ++i) {
         Real eddxx=1.0/3.0;
+        // Real totsigma = pcr->sigma_diff(0,k,j,i);
+        // if (pcr->stream_flag)
+        //   totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
+        //                   + 1.0/pcr->sigma_adv(0,k,j,i));
+        // Real taux = taufact_ * totsigma * pco->dx1f(i);
+        // taux = taux * taux/(2.0 * eddxx);
+        // Real diffv = 1.0;
+
+        // CHANGE: streaming does NOT modify the relaxation/opacity coefficient.
         Real totsigma = pcr->sigma_diff(0,k,j,i);
-        if (pcr->stream_flag)
-          totsigma = 1.0/(1.0/pcr->sigma_diff(0,k,j,i)
-                          + 1.0/pcr->sigma_adv(0,k,j,i));
         Real taux = taufact_ * totsigma * pco->dx1f(i);
         taux = taux * taux/(2.0 * eddxx);
         Real diffv = 1.0;
@@ -104,13 +110,17 @@ void CRIntegrator::CalculateFluxes(
         // get the optical depth across the cell
         for (int i=0; i<ncells1; ++i) {
           Real eddyy=1.0/3.0;
+          // Real totsigma = pcr->sigma_diff(1,k,j,i);
+          // if (pcr->stream_flag)
+          //   totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i)
+          //                   + 1.0/pcr->sigma_adv(1,k,j,i));
+          // Real tauy = taufact_ * totsigma * cwidth2_(i);
+          // tauy = tauy * tauy/(2.0 * eddyy);
+
+          // CHANGE
           Real totsigma = pcr->sigma_diff(1,k,j,i);
-          if (pcr->stream_flag)
-            totsigma = 1.0/(1.0/pcr->sigma_diff(1,k,j,i)
-                            + 1.0/pcr->sigma_adv(1,k,j,i));
           Real tauy = taufact_ * totsigma * cwidth2_(i);
           tauy = tauy * tauy/(2.0 * eddyy);
-
           Real diffv = 1.0;
 
           if (tauy < tau_asymptotic_lim) {
@@ -131,13 +141,18 @@ void CRIntegrator::CalculateFluxes(
         // get the optical depth across the cell
         for (int i=0; i<ncells1; ++i) {
           Real eddzz=1.0/3.0;
+          // Real totsigma = pcr->sigma_diff(2,k,j,i);
+          // if (pcr->stream_flag)
+          //   totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i)
+          //                   + 1.0/pcr->sigma_adv(2,k,j,i));
+          // Real tauz = taufact_ * totsigma * cwidth3_(i);
+          // tauz = tauz * tauz/(2.0 * eddzz);
+
+          // CHANGE
           Real totsigma = pcr->sigma_diff(2,k,j,i);
-          if (pcr->stream_flag)
-            totsigma = 1.0/(1.0/pcr->sigma_diff(2,k,j,i)
-                            + 1.0/pcr->sigma_adv(2,k,j,i));
           Real tauz = taufact_ * totsigma * cwidth3_(i);
           tauz = tauz * tauz/(2.0 * eddzz);
-
+          
           Real diffv = 1.0;
 
           if (tauz < tau_asymptotic_lim) {
