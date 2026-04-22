@@ -35,6 +35,9 @@
 #include "cr.hpp"
 #include "integrators/cr_integrators.hpp"
 
+#include <fstream>
+#include <iomanip>
+
 // constructor, initializes data structures and parameters
 
 // The default opacity function.
@@ -71,89 +74,45 @@ inline void DefaultOpacity(MeshBlock *pmb, AthenaArray<Real> &u_cr,
   // Need to calculate the rotation matrix
   // We need this to determine the direction of rotation velocity
   if (MAGNETIC_FIELDS_ENABLED && (pcr->stream_flag > 0)) {
-    //First, calculate B_dot_grad_Pc
-    for(int k=kl; k<=ku; ++k) {
-      for(int j=jl; j<=ju; ++j) {
-      // diffusion coefficient is calculated with respect to B direction
-      // Use a simple estimate of Grad Pc
+    for (int k = kl; k <= ku; ++k) {
+      for (int j = jl; j <= ju; ++j) {
+  #pragma omp simd
+        for (int i = il; i <= iu; ++i) {
+          Real bx = bcc(IB1,k,j,i);
+          Real by = bcc(IB2,k,j,i);
+          Real bz = bcc(IB3,k,j,i);
 
-        // x component
-        pmb->pcoord->CenterWidth1(k,j,il-1,iu+1,pcr->cwidth);
-        for(int i=il; i<=iu; ++i) {
-          Real distance = 0.5*(pcr->cwidth(i-1) + pcr->cwidth(i+1))
-                         + pcr->cwidth(i);
-          Real dprdx=(u_cr(CRE,k,j,i+1) - u_cr(CRE,k,j,i-1))/3.0;
-          dprdx /= distance;
-          pcr->sigma_adv(0,k,j,i) = dprdx;
-        }
-        // y component
-        pmb->pcoord->CenterWidth2(k,j-1,il,iu,pcr->cwidth1);
-        pmb->pcoord->CenterWidth2(k,j,il,iu,pcr->cwidth);
-        pmb->pcoord->CenterWidth2(k,j+1,il,iu,pcr->cwidth2);
-
-        for(int i=il; i<=iu; ++i) {
-          Real distance = 0.5*(pcr->cwidth1(i) + pcr->cwidth2(i))
-                         + pcr->cwidth(i);
-          Real dprdy=(u_cr(CRE,k,j+1,i) - u_cr(CRE,k,j-1,i))/3.0;
-          dprdy /= distance;
-          pcr->sigma_adv(1,k,j,i) = dprdy;
-        }
-        // z component
-        pmb->pcoord->CenterWidth3(k-1,j,il,iu,pcr->cwidth1);
-        pmb->pcoord->CenterWidth3(k,j,il,iu,pcr->cwidth);
-        pmb->pcoord->CenterWidth3(k+1,j,il,iu,pcr->cwidth2);
-
-        for(int i=il; i<=iu; ++i) {
-          Real distance = 0.5*(pcr->cwidth1(i) + pcr->cwidth2(i))
-                          + pcr->cwidth(i);
-          Real dprdz=(u_cr(CRE,k+1,j,i) -  u_cr(CRE,k-1,j,i))/3.0;
-          dprdz /= distance;
-          pcr->sigma_adv(2,k,j,i) = dprdz;
-        }
-
-        for(int i=il; i<=iu; ++i) {
-          // Now calculate the angles of B
-          Real bxby = std::sqrt(bcc(IB1,k,j,i)*bcc(IB1,k,j,i) +
-                           bcc(IB2,k,j,i)*bcc(IB2,k,j,i));
-          Real btot = std::sqrt(bcc(IB1,k,j,i)*bcc(IB1,k,j,i) +
-                           bcc(IB2,k,j,i)*bcc(IB2,k,j,i) +
-                           bcc(IB3,k,j,i)*bcc(IB3,k,j,i));
+          Real bxby = std::sqrt(bx*bx + by*by);
+          Real btot = std::sqrt(bx*bx + by*by + bz*bz);
 
           if (btot > TINY_NUMBER) {
-            pcr->b_angle(0,k,j,i) = bxby/btot;
-            pcr->b_angle(1,k,j,i) = bcc(IB3,k,j,i)/btot;
+            pcr->b_angle(0,k,j,i) = bxby / btot;
+            pcr->b_angle(1,k,j,i) = bz / btot;
           } else {
             pcr->b_angle(0,k,j,i) = 1.0;
             pcr->b_angle(1,k,j,i) = 0.0;
           }
+
           if (bxby > TINY_NUMBER) {
-            pcr->b_angle(2,k,j,i) = bcc(IB2,k,j,i)/bxby;
-            pcr->b_angle(3,k,j,i) = bcc(IB1,k,j,i)/bxby;
+            pcr->b_angle(2,k,j,i) = by / bxby;
+            pcr->b_angle(3,k,j,i) = bx / bxby;
           } else {
             pcr->b_angle(2,k,j,i) = 0.0;
             pcr->b_angle(3,k,j,i) = 1.0;
           }
 
-          Real va = std::sqrt(btot*btot/prim(IDN,k,j,i));
-          if (va < TINY_NUMBER) {
-            pcr->sigma_adv(0,k,j,i) = pcr->max_opacity;
-          } else {
-            Real b_grad_pc = bcc(IB1,k,j,i) * pcr->sigma_adv(0,k,j,i)
-                           + bcc(IB2,k,j,i) * pcr->sigma_adv(1,k,j,i)
-                           + bcc(IB3,k,j,i) * pcr->sigma_adv(2,k,j,i);
-            pcr->sigma_adv(0,k,j,i) = std::abs(b_grad_pc)/(btot * va * (1.0 + 1.0/3.0)
-                                               * invlim * u_cr(CRE,k,j,i));
-          }
+          // In the new closure, sigma_adv is disabled everywhere.
+          pcr->sigma_adv(0,k,j,i) = pcr->max_opacity;
           pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
           pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
         }
       }
     }
   } else {
-    for(int k=kl; k<=ku; ++k) {
-      for(int j=jl; j<=ju; ++j) {
-#pragma omp simd
-        for(int i=il; i<=iu; ++i) {
+    for (int k = kl; k <= ku; ++k) {
+      for (int j = jl; j <= ju; ++j) {
+  #pragma omp simd
+        for (int i = il; i <= iu; ++i) {
           pcr->sigma_adv(0,k,j,i) = pcr->max_opacity;
           pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
           pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
@@ -167,50 +126,144 @@ inline void DefaultOpacity(MeshBlock *pmb, AthenaArray<Real> &u_cr,
   }
 }
 
+// inline void DefaultStreaming(MeshBlock *pmb, AthenaArray<Real> &u_cr,
+//              AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
+//              AthenaArray<Real> &grad_pc, int k, int j, int is, int ie) {
+//   CosmicRay *pcr = pmb->pcr;
+
+//   const Real f_smooth = 3.0e-1;
+
+//   Real L_box = pmb->pmy_mesh->mesh_size.x1max - pmb->pmy_mesh->mesh_size.x1min;
+//   if (pmb->block_size.nx2 > 1) {
+//     L_box = std::min(L_box,
+//       pmb->pmy_mesh->mesh_size.x2max - pmb->pmy_mesh->mesh_size.x2min);
+//   }
+//   if (pmb->block_size.nx3 > 1) {
+//     L_box = std::min(L_box,
+//       pmb->pmy_mesh->mesh_size.x3max - pmb->pmy_mesh->mesh_size.x3min);
+//   }
+//   L_box = std::max(L_box, TINY_NUMBER);
+
+//   for (int i = is; i <= ie; ++i) {
+//     Real rho = std::max(prim(IDN,k,j,i), TINY_NUMBER);
+//     Real inv_sqrt_rho = 1.0 / std::sqrt(rho);
+
+//     Real b1 = bcc(IB1,k,j,i);
+//     Real b2 = bcc(IB2,k,j,i);
+//     Real b3 = bcc(IB3,k,j,i);
+
+//     Real b_grad_pc = b1 * grad_pc(0,k,j,i)
+//                    + b2 * grad_pc(1,k,j,i)
+//                    + b3 * grad_pc(2,k,j,i);
+
+//     Real va1 = b1 * inv_sqrt_rho;
+//     Real va2 = b2 * inv_sqrt_rho;
+//     Real va3 = b3 * inv_sqrt_rho;
+
+//     Real pc_local = std::max(u_cr(CRE,k,j,i) / 3.0, TINY_NUMBER);
+//     Real grad_abs = std::abs(b_grad_pc);
+
+//     Real grad_phys_floor = pc_local / L_box;
+//     Real eps_grad = f_smooth * std::max(grad_abs, grad_phys_floor);
+
+//     Real s = b_grad_pc /
+//              std::sqrt(b_grad_pc * b_grad_pc + eps_grad * eps_grad + TINY_NUMBER);
+
+//     if (pcr->stream_flag > 0) {
+//       pcr->v_adv(0,k,j,i) = -va1 * s;
+//       pcr->v_adv(1,k,j,i) = -va2 * s;
+//       pcr->v_adv(2,k,j,i) = -va3 * s;
+//     } else {
+//       pcr->v_adv(0,k,j,i) = 0.0;
+//       pcr->v_adv(1,k,j,i) = 0.0;
+//       pcr->v_adv(2,k,j,i) = 0.0;
+//     }
+
+//     pcr->sigma_adv(0,k,j,i) = pcr->max_opacity;
+//     pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
+//     pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
+//   }
+// }
+
 inline void DefaultStreaming(MeshBlock *pmb, AthenaArray<Real> &u_cr,
              AthenaArray<Real> &prim, AthenaArray<Real> &bcc,
              AthenaArray<Real> &grad_pc, int k, int j, int is, int ie) {
-  CosmicRay *pcr=pmb->pcr;
-  Real invlim = 1.0/pcr->vmax;
+  CosmicRay *pcr = pmb->pcr;
 
-  for(int i=is; i<=ie; ++i) {
-    Real inv_sqrt_rho = 1.0/std::sqrt(prim(IDN,k,j,i));
-    Real bsq = bcc(IB1,k,j,i)*bcc(IB1,k,j,i)
-              +bcc(IB2,k,j,i)*bcc(IB2,k,j,i)
-              +bcc(IB3,k,j,i)*bcc(IB3,k,j,i);
+  // This should be small enough to recover nearly hard-sign behavior
+  // away from the extremum, but nonzero to regularize b·grad Pc ~ 0.
+  const Real f_smooth = 1.0e-1;
 
-    Real b_grad_pc = bcc(IB1,k,j,i) * grad_pc(0,k,j,i)
-                   + bcc(IB2,k,j,i) * grad_pc(1,k,j,i)
-                   + bcc(IB3,k,j,i) * grad_pc(2,k,j,i);
+  Real L_box = pmb->pmy_mesh->mesh_size.x1max - pmb->pmy_mesh->mesh_size.x1min;
+  if (pmb->block_size.nx2 > 1) {
+    L_box = std::min(L_box,
+      pmb->pmy_mesh->mesh_size.x2max - pmb->pmy_mesh->mesh_size.x2min);
+  }
+  if (pmb->block_size.nx3 > 1) {
+    L_box = std::min(L_box,
+      pmb->pmy_mesh->mesh_size.x3max - pmb->pmy_mesh->mesh_size.x3min);
+  }
+  L_box = std::max(L_box, TINY_NUMBER);
 
-    Real va1 = bcc(IB1,k,j,i) * inv_sqrt_rho;
-    Real va2 = bcc(IB2,k,j,i) * inv_sqrt_rho;
-    Real va3 = bcc(IB3,k,j,i) * inv_sqrt_rho;
+  for (int i = is; i <= ie; ++i) {
+    Real rho = std::max(prim(IDN,k,j,i), TINY_NUMBER);
+    Real inv_sqrt_rho = 1.0 / std::sqrt(rho);
 
-    Real va = std::sqrt(bsq) * inv_sqrt_rho;
-    Real dpc_sign = 0.0;
+    Real b1 = bcc(IB1,k,j,i);
+    Real b2 = bcc(IB2,k,j,i);
+    Real b3 = bcc(IB3,k,j,i);
 
-    if (b_grad_pc > TINY_NUMBER) dpc_sign = 1.0;
-    else if (-b_grad_pc > TINY_NUMBER) dpc_sign = -1.0;
+    Real b_grad_pc = b1 * grad_pc(0,k,j,i)
+                   + b2 * grad_pc(1,k,j,i)
+                   + b3 * grad_pc(2,k,j,i);
+
+    Real va1 = b1 * inv_sqrt_rho;
+    Real va2 = b2 * inv_sqrt_rho;
+    Real va3 = b3 * inv_sqrt_rho;
+
+    Real pc_local = std::max(u_cr(CRE,k,j,i) / 3.0, TINY_NUMBER);
+
+    // IMPORTANT:
+    // Use a floor independent of |b·grad Pc| itself.
+    // This means the regularization only matters near the sign flip.
+    Real grad_floor = f_smooth * pc_local / L_box;
+
+    Real s = b_grad_pc /
+             std::sqrt(b_grad_pc * b_grad_pc +
+                       grad_floor * grad_floor +
+                       TINY_NUMBER);
+
+      if (k == pmb->ks && j == pmb->js) {
+        int ic = (is + ie) / 2;
+        if (std::abs(i - ic) <= 8) {
+          std::ofstream dbg("streaming_debug.txt", std::ios::app);
+          dbg << std::setprecision(16);
+          dbg << "i=" << i
+              << " x=" << pmb->pcoord->x1v(i)
+              << " Ec=" << u_cr(CRE,k,j,i)
+              << " b_grad_pc=" << b_grad_pc
+              << " grad_floor=" << grad_floor
+              << " s=" << s
+              << " va1=" << va1
+              << " vadv1=" << (-va1 * s)
+              << "\n";
+      }
+    }
 
     if (pcr->stream_flag > 0) {
-      pcr->v_adv(0,k,j,i) = -va1 * dpc_sign;
-      pcr->v_adv(1,k,j,i) = -va2 * dpc_sign;
-      pcr->v_adv(2,k,j,i) = -va3 * dpc_sign;
-      if (va > TINY_NUMBER) {
-        pcr->sigma_adv(0,k,j,i) = std::abs(b_grad_pc)/(std::sqrt(bsq) * va *
-                               (4.0/3.0) * invlim * u_cr(CRE,k,j,i));
-        pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
-        pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
-      }
+      pcr->v_adv(0,k,j,i) = -va1 * s;
+      pcr->v_adv(1,k,j,i) = -va2 * s;
+      pcr->v_adv(2,k,j,i) = -va3 * s;
     } else {
       pcr->v_adv(0,k,j,i) = 0.0;
       pcr->v_adv(1,k,j,i) = 0.0;
       pcr->v_adv(2,k,j,i) = 0.0;
-      pcr->sigma_adv(0,k,j,i)  = pcr->max_opacity;
-      pcr->sigma_adv(1,k,j,i)  = pcr->max_opacity;
-      pcr->sigma_adv(2,k,j,i)  = pcr->max_opacity;
     }
+
+    // Streaming no longer enters through sigma_adv in your modified closure.
+    pcr->sigma_adv(0,k,j,i) = pcr->max_opacity;
+    pcr->sigma_adv(1,k,j,i) = pcr->max_opacity;
+    pcr->sigma_adv(2,k,j,i) = pcr->max_opacity;
   }
 }
 
