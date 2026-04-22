@@ -47,6 +47,13 @@
 #include <omp.h>
 #endif
 
+#include <fstream>
+#include <iomanip>
+
+static constexpr int CRDBG_CELL_RADIUS = 6;
+static constexpr int CRDBG_MAX_WRITES = 2000;
+static int crdbg_source_writes = 0;
+
 // add the source terms implicitly
 void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Real> &u,
         AthenaArray<Real> &w, AthenaArray<Real> &bcc,
@@ -98,6 +105,8 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
            vtot3 += pcr->v_adv(2,k,j,i);
          }
 
+        
+
          Real fr1 = fc1[i];
          Real fr2 = fc2[i];
          Real fr3 = fc3[i];
@@ -121,6 +130,32 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
          Real sigma_x = pcr->sigma_diff(0,k,j,i);
          Real sigma_y = pcr->sigma_diff(1,k,j,i);
          Real sigma_z = pcr->sigma_diff(2,k,j,i);
+
+         // DEBUG: inspect source-step full-flux state before solve
+        if (k == ks && j == js && crdbg_source_writes < CRDBG_MAX_WRITES) {
+          int ic = (is + ie) / 2;
+          if (std::abs(i - ic) <= CRDBG_CELL_RADIUS) {
+            std::ofstream dbg("cr_source_debug.txt", std::ios::app);
+            dbg << std::setprecision(16);
+
+            Real Ec0 = ec[i];
+            Real Pc0 = Ec0 / 3.0;
+            Real Feq0 = (Ec0 + Pc0) * vtot1 * invlim;
+            Real R0   = fr1 - Feq0;
+
+            dbg << "SOURCE_PRE "
+                << "i=" << i
+                << " Ec=" << Ec0
+                << " F1=" << fr1
+                << " v1=" << v1
+                << " vadv=" << (vtot1 - v1)
+                << " vtot=" << vtot1
+                << " sigma=" << sigma_x
+                << " Feq=" << Feq0
+                << " R=" << R0
+                << "\n";
+          }
+        }
 
         // CHANGE
         //  if (pcr->stream_flag) {
@@ -183,6 +218,31 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         Real newfr2 = (rhs3 - coef_31 * new_ec)/coef_33;
         Real newfr3 = (rhs4 - coef_41 * new_ec)/coef_44;
 
+        // DEBUG: inspect source-step output after solve
+        if (k == ks && j == js && crdbg_source_writes < CRDBG_MAX_WRITES) {
+          int ic = (is + ie) / 2;
+          if (std::abs(i - ic) <= CRDBG_CELL_RADIUS) {
+            std::ofstream dbg("cr_source_debug.txt", std::ios::app);
+            dbg << std::setprecision(16);
+
+            Real Pc_new = new_ec / 3.0;
+            Real Feq_new = (new_ec + Pc_new) * vtot1 * invlim;
+            Real R_new   = newfr1 - Feq_new;
+
+            dbg << "SOURCE_POST "
+                << "i=" << i
+                << " Ec_new=" << new_ec
+                << " F1_new=" << newfr1
+                << " Feq_new=" << Feq_new
+                << " R_new=" << R_new
+                << " e_coef=" << e_coef
+                << " c11=" << coef_11
+                << " c12=" << coef_12
+                << " c21=" << coef_21
+                << " c22=" << coef_22
+                << "\n";
+          }
+        }
 
         // Now apply the invert rotation
         if (MAGNETIC_FIELDS_ENABLED) {
@@ -206,11 +266,44 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
            u(IM2,k,j,i) += (-(newfr2 - fc2[i]) * invlim);
            u(IM3,k,j,i) += (-(newfr3 - fc3[i]) * invlim);
          }
+
+        // DEBUG: inspect final stored state values (lab frame)
+        if (k == ks && j == js && crdbg_source_writes < CRDBG_MAX_WRITES) {
+          int ic = (is + ie) / 2;
+          if (std::abs(i - ic) <= CRDBG_CELL_RADIUS) {
+            std::ofstream dbg("cr_source_debug.txt", std::ios::app);
+            dbg << std::setprecision(16);
+
+            Real rho_store = std::max(u(IDN,k,j,i), rho_floor);
+            Real v1_store = u(IM1,k,j,i) / rho_store;
+            Real vtot_store = v1_store;
+            if (pcr->stream_flag) vtot_store += pcr->v_adv(0,k,j,i);
+
+            Real Pc_store = new_ec / 3.0;
+            Real Feq_store = (new_ec + Pc_store) * vtot_store * invlim;
+            Real R_store = newfr1 - Feq_store;
+
+            dbg << "SOURCE_STORE "
+                << "i=" << i
+                << " Ec_store=" << new_ec
+                << " F1_store=" << newfr1
+                << " Feq_store=" << Feq_store
+                << " R_store=" << R_store
+                << "\n";
+          }
+        }
+
          u_cr(CRE,k,j,i) = new_ec;
          u_cr(CRF1,k,j,i) = newfr1;
          u_cr(CRF2,k,j,i) = newfr2;
          u_cr(CRF3,k,j,i) = newfr3;
       }
+
+      if (k == ks && j == js && crdbg_source_writes < CRDBG_MAX_WRITES) {
+      std::ofstream dbg("cr_source_debug.txt", std::ios::app);
+      dbg << "====\n";
+      ++crdbg_source_writes;
+    }
     }
   }
   // Add user defined source term for cosmic rays
