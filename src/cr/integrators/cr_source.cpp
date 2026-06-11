@@ -175,6 +175,7 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         Real newfr1 = (rhs2 - coef_21 * new_ec)/coef_22;
         Real newfr2 = (rhs3 - coef_31 * new_ec)/coef_33;
         Real newfr3 = (rhs4 - coef_41 * new_ec)/coef_44;
+        Real ecr_after_implicit = new_ec;
 
 
         // Now apply the invert rotation
@@ -184,9 +185,13 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
                                          newfr1,newfr2,newfr3);
           new_ec += dt * ec_source_(k,j,i);
         }
+        Real ecr_after_source = new_ec;
+        pcr->q_cr_gas_implicit(k,j,i) = -(ecr_after_implicit - ec[i])/dt;
+        pcr->q_cr_gas_ecsource(k,j,i) = -(ecr_after_source - ecr_after_implicit)/dt;
+        pcr->q_cr_gas_total(k,j,i) = -(ecr_after_source - ec[i])/dt;
 
-         // Add the energy source term
-         if (NON_BAROTROPIC_EOS && (pcr->src_flag > 0)) {
+        // Add the energy source term
+        if (NON_BAROTROPIC_EOS && (pcr->src_flag > 0)) {
            Real new_eg = u(IEN,k,j,i) - (new_ec - ec[i]);
            if (new_eg < 0.0) new_eg = u(IEN,k,j,i);
            u(IEN,k,j,i) = new_eg;

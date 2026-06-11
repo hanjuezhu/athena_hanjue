@@ -68,6 +68,10 @@ class CosmicRay {
   AthenaArray<Real> cwidth2;
   AthenaArray<Real> b_grad_pc; // array to store B\dot Grad Pc
   AthenaArray<Real> b_angle; //sin\theta,cos\theta,sin\phi,cos\phi of B direction
+  AthenaArray<Real> q_cr_gas_total;    // total CR-to-gas energy exchange rate
+  AthenaArray<Real> q_cr_gas_implicit; // implicit source contribution
+  AthenaArray<Real> q_cr_gas_ecsource; // ec_source_ contribution
+  AthenaArray<Real> q_cr_gas_stream;   // -v_stream dot grad(Pc)
 
   int stream_flag; // flag to include streaming or not
   int src_flag;    // flag to include CR source term or not

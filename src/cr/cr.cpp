@@ -255,6 +255,14 @@ CosmicRay::CosmicRay(MeshBlock *pmb, ParameterInput *pin):
   int nc1 = pmb->ncells1, nc2 = pmb->ncells2, nc3 = pmb->ncells3;
   b_grad_pc.NewAthenaArray(nc3, nc2, nc1);
   b_angle.NewAthenaArray(4, nc3, nc2, nc1);
+  q_cr_gas_total.NewAthenaArray(nc3, nc2, nc1);
+  q_cr_gas_implicit.NewAthenaArray(nc3, nc2, nc1);
+  q_cr_gas_ecsource.NewAthenaArray(nc3, nc2, nc1);
+  q_cr_gas_stream.NewAthenaArray(nc3, nc2, nc1);
+  q_cr_gas_total.ZeroClear();
+  q_cr_gas_implicit.ZeroClear();
+  q_cr_gas_ecsource.ZeroClear();
+  q_cr_gas_stream.ZeroClear();
 
   cwidth.NewAthenaArray(nc1);
   cwidth1.NewAthenaArray(nc1);

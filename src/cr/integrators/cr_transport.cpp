@@ -411,6 +411,12 @@ void CRIntegrator::CalculateFluxes(
         // update streaming with grad_pc
 
         pcr->UpdateStreaming(pmb, cr,w,bcc,grad_pc_,k,j,is,ie);
+        for (int i=is; i<=ie; ++i) {
+          pcr->q_cr_gas_stream(k,j,i) =
+              -(pcr->v_adv(0,k,j,i)*grad_pc_(0,k,j,i)
+                + pcr->v_adv(1,k,j,i)*grad_pc_(1,k,j,i)
+                + pcr->v_adv(2,k,j,i)*grad_pc_(2,k,j,i));
+        }
 
         // calculate streaming velocity with magnetic field
         for (int i=is; i<=ie; ++i) {
