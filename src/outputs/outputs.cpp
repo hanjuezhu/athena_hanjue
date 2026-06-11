@@ -1143,6 +1143,73 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
         num_vars_+=3;
       }
     }
+
+    // CR-to-gas energy-exchange diagnostics. Positive values mean that the gas gains
+    // energy and the CRs lose energy. All quantities are cell-centered rates in code
+    // energy-density per code time.
+    //
+    // q_cr_gas_total:
+    //   -(Ecr_after_source - Ecr_before_source)/dt. This is the complete CR energy
+    //   change applied by CRIntegrator::AddSourceTerms(), including both the implicit
+    //   source solve and ec_source_. Subject to the gas-energy positivity guard, this
+    //   is the diagnostic that corresponds to the source-step gas-energy update.
+    //
+    // q_cr_gas_implicit:
+    //   -(Ecr_after_implicit - Ecr_before_source)/dt. This isolates the implicit
+    //   CR-gas coupling solve. Along B, that solve uses the scattering-frame velocity
+    //   v + v_adv, so this quantity is not purely Alfvenic streaming heating.
+    //
+    // q_cr_gas_ecsource:
+    //   -(Ecr_after_source - Ecr_after_implicit)/dt = -ec_source_. In the field-aligned
+    //   frame, ec_source_ = v_perp dot grad_perp(Pc). It is normally zero for a 1D
+    //   problem with B parallel to the simulation direction.
+    //
+    // q_cr_gas_stream:
+    //   -v_adv dot grad(Pc), evaluated after UpdateStreaming(). This is a derived
+    //   diagnostic for isolated streaming/Alfven-wave heating. It need not exactly
+    //   equal the energy exchanged by the finite-timestep implicit source solve.
+    //
+    // Selecting "q_cr_gas" outputs all four fields.
+    bool output_all_cr_q = ContainVariable(output_params.variable, "q_cr_gas");
+    if (output_all_cr_q ||
+        ContainVariable(output_params.variable, "q_cr_gas_total")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "q_cr_gas_total";
+      pod->data.InitWithShallowSlice(pcr->q_cr_gas_total, 4, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    if (output_all_cr_q ||
+        ContainVariable(output_params.variable, "q_cr_gas_implicit")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "q_cr_gas_implicit";
+      pod->data.InitWithShallowSlice(pcr->q_cr_gas_implicit, 4, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    if (output_all_cr_q ||
+        ContainVariable(output_params.variable, "q_cr_gas_ecsource")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "q_cr_gas_ecsource";
+      pod->data.InitWithShallowSlice(pcr->q_cr_gas_ecsource, 4, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
+
+    if (output_all_cr_q ||
+        ContainVariable(output_params.variable, "q_cr_gas_stream")) {
+      pod = new OutputData;
+      pod->type = "SCALARS";
+      pod->name = "q_cr_gas_stream";
+      pod->data.InitWithShallowSlice(pcr->q_cr_gas_stream, 4, 0, 1);
+      AppendOutputDataNode(pod);
+      num_vars_++;
+    }
   }// end Cosmic Rays
 
   if (CRDIFFUSION_ENABLED) {
