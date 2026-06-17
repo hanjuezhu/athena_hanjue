@@ -72,6 +72,11 @@ class CosmicRay {
   AthenaArray<Real> q_cr_gas_implicit; // implicit source contribution
   AthenaArray<Real> q_cr_gas_ecsource; // ec_source_ contribution
   AthenaArray<Real> q_cr_gas_stream;   // -v_stream dot grad(Pc)
+  AthenaArray<Real> cr_grad_pc;        // grad(Pc) used by CR transport/source diagnostics
+  AthenaArray<Real> cr_dfc_dt_src;     // actual source-step dFc/dt
+  AthenaArray<Real> cr_force_src;      // gas momentum source rate from CR flux change
+  AthenaArray<Real> cr_dfc_dt_relax;   // -vmax*sigma*Fc term in source-step flux equation
+  AthenaArray<Real> cr_dfc_dt_eq;      // sigma*v_gas*(Ec+Pc) term in source-step flux equation
 
   int stream_flag; // flag to include streaming or not
   int src_flag;    // flag to include CR source term or not

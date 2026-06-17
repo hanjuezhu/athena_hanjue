@@ -1210,6 +1210,82 @@ void OutputType::LoadOutputData(MeshBlock *pmb) {
       AppendOutputDataNode(pod);
       num_vars_++;
     }
+
+    // CR flux-equation diagnostics for checking whether the CR flux is close to
+    // the quasi-steady streaming limit. These are vectors in code coordinates.
+    //
+    // cr_grad_pc:
+    //   grad(Pc) reconstructed in CRIntegrator::CalculateFluxes() and used by
+    //   UpdateStreaming(). The conservative CR transport update contributes
+    //   approximately dFc/dt = -vmax*grad(Pc).
+    //
+    // cr_dfc_dt_src:
+    //   Actual source-step CR flux change, (Fc_after_source - Fc_before_source)/dt,
+    //   from CRIntegrator::AddSourceTerms().
+    //
+    // cr_force_src:
+    //   Actual gas momentum source rate from the CR source step,
+    //   -cr_dfc_dt_src/vmax. In the quasi-steady limit, cr_force_src should be
+    //   close to -grad(Pc).
+    //
+    // cr_dfc_relax and cr_dfc_eq:
+    //   The two terms in the implicit source-step flux equation, evaluated with
+    //   post-solve values and rotated back to code coordinates:
+    //     cr_dfc_relax = -vmax*sigma_eff*Fc_after
+    //     cr_dfc_eq    =  sigma_eff*v_gas*(Ec_after+Pc_after)
+    //   Their sum should equal cr_dfc_dt_src up to roundoff for the source step.
+    //
+    // Selecting "cr_flux_diag" outputs all five vector diagnostics.
+    bool output_all_cr_flux_diag = ContainVariable(output_params.variable, "cr_flux_diag");
+    if (output_all_cr_flux_diag ||
+        ContainVariable(output_params.variable, "cr_grad_pc")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "cr_grad_pc";
+      pod->data.InitWithShallowSlice(pcr->cr_grad_pc, 4, 0, 3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    if (output_all_cr_flux_diag ||
+        ContainVariable(output_params.variable, "cr_dfc_dt_src")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "cr_dfc_dt_src";
+      pod->data.InitWithShallowSlice(pcr->cr_dfc_dt_src, 4, 0, 3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    if (output_all_cr_flux_diag ||
+        ContainVariable(output_params.variable, "cr_force_src")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "cr_force_src";
+      pod->data.InitWithShallowSlice(pcr->cr_force_src, 4, 0, 3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    if (output_all_cr_flux_diag ||
+        ContainVariable(output_params.variable, "cr_dfc_relax")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "cr_dfc_relax";
+      pod->data.InitWithShallowSlice(pcr->cr_dfc_dt_relax, 4, 0, 3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
+
+    if (output_all_cr_flux_diag ||
+        ContainVariable(output_params.variable, "cr_dfc_eq")) {
+      pod = new OutputData;
+      pod->type = "VECTORS";
+      pod->name = "cr_dfc_eq";
+      pod->data.InitWithShallowSlice(pcr->cr_dfc_dt_eq, 4, 0, 3);
+      AppendOutputDataNode(pod);
+      num_vars_+=3;
+    }
   }// end Cosmic Rays
 
   if (CRDIFFUSION_ENABLED) {

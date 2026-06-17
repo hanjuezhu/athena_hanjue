@@ -81,22 +81,25 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
 
          // adv1 is dPc/dx, adv2 is dPc/dy, adv3 is dPc/dz
 
-      for (int i=is; i<=ie; ++i) {
-         Real rho = u(IDN,k,j,i);
-         rho = std::max(rho,rho_floor);
-         Real v1 = u(IM1,k,j,i)/rho;
-         Real v2 = u(IM2,k,j,i)/rho;
-         Real v3 = u(IM3,k,j,i)/rho;
-         Real vtot1 = v1;
-         Real vtot2 = v2;
-         Real vtot3 = v3;
+	      for (int i=is; i<=ie; ++i) {
+	         Real rho = u(IDN,k,j,i);
+	         rho = std::max(rho,rho_floor);
+	         Real v1 = u(IM1,k,j,i)/rho;
+	         Real v2 = u(IM2,k,j,i)/rho;
+	         Real v3 = u(IM3,k,j,i)/rho;
+	         Real vtot1 = v1;
+	         Real vtot2 = v2;
+	         Real vtot3 = v3;
+	         Real fr1_old = fc1[i];
+	         Real fr2_old = fc2[i];
+	         Real fr3_old = fc3[i];
 
-         // add the streaming velocity
-         if (pcr->stream_flag) {
-           vtot1 += pcr->v_adv(0,k,j,i);
-           vtot2 += pcr->v_adv(1,k,j,i);
-           vtot3 += pcr->v_adv(2,k,j,i);
-         }
+	         // add the streaming velocity
+	         if (pcr->stream_flag) {
+	           vtot1 += pcr->v_adv(0,k,j,i);
+	           vtot2 += pcr->v_adv(1,k,j,i);
+	           vtot3 += pcr->v_adv(2,k,j,i);
+	         }
 
          Real fr1 = fc1[i];
          Real fr2 = fc2[i];
@@ -177,18 +180,43 @@ void CRIntegrator::AddSourceTerms(MeshBlock *pmb, const Real dt, AthenaArray<Rea
         Real newfr3 = (rhs4 - coef_41 * new_ec)/coef_44;
         Real ecr_after_implicit = new_ec;
 
+        Real dfc_relax1 = -vlim * sigma_x * newfr1;
+        Real dfc_relax2 = -vlim * sigma_y * newfr2;
+        Real dfc_relax3 = -vlim * sigma_z * newfr3;
+        Real dfc_eq1 = sigma_x * v1 * (4.0/3.0) * new_ec;
+        Real dfc_eq2 = sigma_y * v2 * (4.0/3.0) * new_ec;
+        Real dfc_eq3 = sigma_z * v3 * (4.0/3.0) * new_ec;
 
         // Now apply the invert rotation
         if (MAGNETIC_FIELDS_ENABLED) {
          // Apply rotation of the vectors
           InvRotateVec(sint_b[i],cost_b[i],sinp_b[i],cosp_b[i],
                                          newfr1,newfr2,newfr3);
+          InvRotateVec(sint_b[i],cost_b[i],sinp_b[i],cosp_b[i],
+                                        dfc_relax1,dfc_relax2,dfc_relax3);
+          InvRotateVec(sint_b[i],cost_b[i],sinp_b[i],cosp_b[i],
+                                        dfc_eq1,dfc_eq2,dfc_eq3);
           new_ec += dt * ec_source_(k,j,i);
         }
         Real ecr_after_source = new_ec;
+        Real dfc_dt1 = (newfr1 - fr1_old)/dt;
+        Real dfc_dt2 = (newfr2 - fr2_old)/dt;
+        Real dfc_dt3 = (newfr3 - fr3_old)/dt;
         pcr->q_cr_gas_implicit(k,j,i) = -(ecr_after_implicit - ec[i])/dt;
         pcr->q_cr_gas_ecsource(k,j,i) = -(ecr_after_source - ecr_after_implicit)/dt;
         pcr->q_cr_gas_total(k,j,i) = -(ecr_after_source - ec[i])/dt;
+        pcr->cr_dfc_dt_src(0,k,j,i) = dfc_dt1;
+        pcr->cr_dfc_dt_src(1,k,j,i) = dfc_dt2;
+        pcr->cr_dfc_dt_src(2,k,j,i) = dfc_dt3;
+        pcr->cr_force_src(0,k,j,i) = -dfc_dt1 * invlim;
+        pcr->cr_force_src(1,k,j,i) = -dfc_dt2 * invlim;
+        pcr->cr_force_src(2,k,j,i) = -dfc_dt3 * invlim;
+        pcr->cr_dfc_dt_relax(0,k,j,i) = dfc_relax1;
+        pcr->cr_dfc_dt_relax(1,k,j,i) = dfc_relax2;
+        pcr->cr_dfc_dt_relax(2,k,j,i) = dfc_relax3;
+        pcr->cr_dfc_dt_eq(0,k,j,i) = dfc_eq1;
+        pcr->cr_dfc_dt_eq(1,k,j,i) = dfc_eq2;
+        pcr->cr_dfc_dt_eq(2,k,j,i) = dfc_eq3;
 
         // Add the energy source term
         if (NON_BAROTROPIC_EOS && (pcr->src_flag > 0)) {

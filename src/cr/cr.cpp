@@ -259,10 +259,20 @@ CosmicRay::CosmicRay(MeshBlock *pmb, ParameterInput *pin):
   q_cr_gas_implicit.NewAthenaArray(nc3, nc2, nc1);
   q_cr_gas_ecsource.NewAthenaArray(nc3, nc2, nc1);
   q_cr_gas_stream.NewAthenaArray(nc3, nc2, nc1);
+  cr_grad_pc.NewAthenaArray(3, nc3, nc2, nc1);
+  cr_dfc_dt_src.NewAthenaArray(3, nc3, nc2, nc1);
+  cr_force_src.NewAthenaArray(3, nc3, nc2, nc1);
+  cr_dfc_dt_relax.NewAthenaArray(3, nc3, nc2, nc1);
+  cr_dfc_dt_eq.NewAthenaArray(3, nc3, nc2, nc1);
   q_cr_gas_total.ZeroClear();
   q_cr_gas_implicit.ZeroClear();
   q_cr_gas_ecsource.ZeroClear();
   q_cr_gas_stream.ZeroClear();
+  cr_grad_pc.ZeroClear();
+  cr_dfc_dt_src.ZeroClear();
+  cr_force_src.ZeroClear();
+  cr_dfc_dt_relax.ZeroClear();
+  cr_dfc_dt_eq.ZeroClear();
 
   cwidth.NewAthenaArray(nc1);
   cwidth1.NewAthenaArray(nc1);
